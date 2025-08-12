@@ -1,0 +1,53 @@
+---
+- name: TC-RDEF-001 - Create a Role Definition with Specific Permissions
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Read username from environment
+    test_user: "{{ lookup('env', 'TEST_USER') | default('defaultuser', true) }}"
+    # Append small random suffix to avoid accidental collision for the same user
+    role_name: "TestRole-{{ test_user }}"
+
+  tasks:
+    - name: Create a role definition with specific permissions
+      ansible.platform.role_definition:
+        name: "{{ role_name }}"
+        description: "Grants change/view inventory access"
+        content_type: awx.inventory
+        permissions:
+          - awx.view_inventory
+          - awx.change_inventory
+        state: present
+        aap_hostname: "{{ lookup('env', 'AAP_HOSTNAME') }}"
+        aap_username: "{{ lookup('env', 'AAP_USERNAME') }}"
+        aap_password: "{{ lookup('env', 'AAP_PASSWORD') }}"
+        aap_validate_certs: false
+      register: create_result
+
+    - name: Assert role was created
+      ansible.builtin.assert:
+        that:
+          - create_result is changed
+        fail_msg: "Role was not created as expected."
+
+    - name: Re-run task to check idempotency
+      ansible.platform.role_definition:
+        name: "{{ role_name }}"
+        description: "Grants change/view inventory access"
+        content_type: awx.inventory
+        permissions:
+          - awx.view_inventory
+          - awx.change_inventory
+        state: present
+        aap_hostname: "{{ lookup('env', 'AAP_HOSTNAME') }}"
+        aap_username: "{{ lookup('env', 'AAP_USERNAME') }}"
+        aap_password: "{{ lookup('env', 'AAP_PASSWORD') }}"
+        aap_validate_certs: false
+      register: idempotency_result
+
+    - name: Assert idempotency
+      ansible.builtin.assert:
+        that:
+          - idempotency_result is not changed
+        fail_msg: "Role creation task was not idempotent."
