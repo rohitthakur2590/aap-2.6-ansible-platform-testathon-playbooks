@@ -1,0 +1,38 @@
+---
+- name: TC-RTA-001 - Role team assignment
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Change this to your Red Hat username so names are unique
+    rh_username: "{{ lookup('env', 'USER') | default('testuser', true) }}"
+    team_name: "TestTeam-1-{{ rh_username }}"
+
+  tasks:
+    # First deletion
+    - name: TC-RTA-001 Assign Organization Inventory Admin to APAC-BLR
+      ansible.platform.role_team_assignment:
+        team: "{{ team_name }}"
+        role_definition: Organization Inventory Admin
+        object_name: Engineering
+        object_type: organizations
+        state: present
+        aap_hostname: "{{ aap_hostname }}"
+        aap_username: "{{ aap_username }}"
+        aap_password: "{{ aap_password }}"
+        aap_validate_certs: false
+      register: add_team_first
+
+    - name: Assert rename was successful
+      ansible.builtin.assert:
+        that:
+          - add_perm is changed
+
+    - name: Re-run rename task to verify idempotency
+      ansible.platform.role_definition: *id_tc_rta_001
+      register: add_team
+
+    - name: Assert second run is idempotent (no changes)
+      ansible.builtin.assert:
+        that:
+          - add_team is not changed
