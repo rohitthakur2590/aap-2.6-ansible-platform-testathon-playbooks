@@ -1,0 +1,36 @@
+---
+- name: TC-RDEF-006 - Delete Role
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Change this to your Red Hat username so names are unique
+    rh_username: "{{ lookup('env', 'USER') | default('testuser', true) }}"
+    role_name: "TestRole-1-Renamed-{{ rh_username }}"
+
+  tasks:
+    # First deletion
+    - name: Delete role
+      ansible.platform.role_definition: &id_tc_rdef_006
+        name: "{{ role_name }}"
+        state: absent
+        aap_hostname: <gateway-URL>
+        aap_username: <username>
+        aap_password: <password>
+        aap_validate_certs: false
+      register: delete_first
+
+
+    - name: Assert rename was successful
+      ansible.builtin.assert:
+        that:
+          - delete_first is changed
+
+    - name: Re-run rename task to verify idempotency
+      ansible.platform.role_definition: *id_tc_rdef_006
+      register: del_role
+
+    - name: Assert second run is idempotent (no changes)
+      ansible.builtin.assert:
+        that:
+          - del_role is not changed

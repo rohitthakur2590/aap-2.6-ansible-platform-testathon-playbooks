@@ -11,7 +11,7 @@
 
   tasks:
     - name: Create a role definition with specific permissions
-      ansible.platform.role_definition:
+      ansible.platform.role_definition: &id_tc_rdef_001
         name: "{{ role_name }}"
         description: "Grants change/view inventory access"
         content_type: awx.inventory
@@ -32,18 +32,7 @@
         fail_msg: "Role was not created as expected."
 
     - name: Re-run task to check idempotency
-      ansible.platform.role_definition:
-        name: "{{ role_name }}"
-        description: "Grants change/view inventory access"
-        content_type: awx.inventory
-        permissions:
-          - awx.view_inventory
-          - awx.change_inventory
-        state: present
-        aap_hostname: "{{ lookup('env', 'AAP_HOSTNAME') }}"
-        aap_username: "{{ lookup('env', 'AAP_USERNAME') }}"
-        aap_password: "{{ lookup('env', 'AAP_PASSWORD') }}"
-        aap_validate_certs: false
+      ansible.platform.role_definition: *id_tc_rdef_003
       register: idempotency_result
 
     - name: Assert idempotency
