@@ -2,7 +2,7 @@
 - name: Cleanup
   ansible.builtin.include_tasks: ./reset/TC-ORG-001.yaml
 
-- name: Delete team under org TC-TEAM-001
+- name: Create team under org TC-TEAM-001
   ansible.platform.team: &tc_team_001
     name: "{{ team_name }}"
     organization: "{{ org_name }}"

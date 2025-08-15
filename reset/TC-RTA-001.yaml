@@ -1,0 +1,115 @@
+---
+# --------------------------------------------------------------------------
+# Setup
+# --------------------------------------------------------------------------
+- name: Preset variables for test resource names
+  ansible.builtin.set_fact:
+    organization_name: "RTA-Org-{{ rh_username }}"
+    team_name_prefix: "RTA-Team-{{ rh_username }}"
+    org1: "RTA-Org-rothakur-1"
+    org2: "RTA-Org-rothakur-2"
+    org3: "RTA-Org-rothakur-3"
+    org4: "RTA-Org-rothakur-4"
+    team1: "RTA-Team-rothakur-1"
+    team2: "RTA-Team-rothakur-2"
+    team3: "RTA-Team-rothakur-3"
+    team4: "RTA-Team-rothakur-4"
+
+- name: Assign Org Inventory Admin to Team1 on Org1
+  ansible.platform.role_team_assignment:
+    team: "{{ team1 }}"
+    assignment_objects:
+    - name: "{{ org1 }}"   # org ...-1
+    role_definition: Organization Inventory Admin
+    state: absent
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+  register: org_admin_assignment_1
+  ignore_errors: true
+
+
+# --------------------------------------------------------------------------
+# Organizations
+# --------------------------------------------------------------------------
+- name: Remove Organization 1
+  ansible.platform.organization:
+    name: "{{ org1 }}"
+    state: absent
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+  register: r_org1
+
+- name: Create Organization 2
+  ansible.platform.organization:
+    name: "{{ org2 }}"
+    state: absent
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+  register: r_org2
+
+- name: Create Organization 3
+  ansible.platform.organization:
+    name: "{{ org3 }}"
+    state: absent
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+  register: r_org3
+
+- name: Create Organization 4
+  ansible.platform.organization:
+    name: "{{ org4 }}"
+    state: absent
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+  register: r_org4
+
+# --------------------------------------------------------------------------
+# Teams
+# --------------------------------------------------------------------------
+- name: Create Team 1 in Organization 1
+  ansible.platform.team:
+    name: "{{ team1 }}"
+    organization: "{{ org1 }}"
+    description: "Test Team 1"
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+    state: absent
+
+  register: team1
+
+- name: Create Team 2 in Organization 2
+  ansible.platform.team:
+    name: "{{ team1 }}"
+    organization: "{{ org2 }}"
+    description: "Test Team 2"
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+    state: absent
+  register: team2
+
+- name: Create Team 3 in Organization 3
+  ansible.platform.team:
+    name: "{{ team3 }}"
+    organization: "{{ org3 }}"
+    description: "Test Team 3"
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
+    state: absent
+  register: team3
+  
