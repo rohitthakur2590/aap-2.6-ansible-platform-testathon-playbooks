@@ -1,0 +1,30 @@
+---
+- name: TC-RDEF-001 - Create a Role Definition with Specific Permissions
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
+  vars:
+    role_name: "TestRole-1-{{ rh_username }}"
+    org_name: "TestOrg-1-{{ rh_username }}"
+    team_name: "TestTeam-1-{{ rh_username }}"
+    user_name: "TestUser-1-{{ rh_username }}"
+    first_name: "User-1"
+    last_name: "Test"
+    user_password: "ansible"
+    email: "testuser1@local.com"
+
+  tasks:
+    - name: Org Cleanup
+      ansible.builtin.include_tasks: ./reset/TC-ORG-001.yaml
+      
+    - name: Role Cleanup
+      ansible.builtin.include_tasks: ./reset/TC-RDEF-001.yaml
+    
+    - name: Team Cleanup
+      ansible.builtin.include_tasks: ./reset/TC-TEAM-001.yaml
+    
+    - name: User Cleanup
+      ansible.builtin.include_tasks: ./reset/TC-USER-001.yaml

@@ -3,14 +3,17 @@
   hosts: localhost
   gather_facts: false
 
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
   vars:
-    # Read username from environment
-    test_user: "{{ lookup('env', 'TEST_USER') | default('defaultuser', true) }}"
-    # Append small random suffix to avoid accidental collision for the same user
-    role_name: "TestRole-{{ test_user }}"
+    role_name: "TestRole-1-{{ rh_username }}"
 
   tasks:
-    - name: Create a role definition with specific permissions
+    - name: Cleanup
+      ansible.builtin.include_tasks: ./reset/TC-RDEF-001.yaml
+    
+    - name: Create a role definition with permissions
       ansible.platform.role_definition: &id_tc_rdef_001
         name: "{{ role_name }}"
         description: "Grants change/view inventory access"
@@ -19,9 +22,9 @@
           - awx.view_inventory
           - awx.change_inventory
         state: present
-        aap_hostname: "{{ lookup('env', 'AAP_HOSTNAME') }}"
-        aap_username: "{{ lookup('env', 'AAP_USERNAME') }}"
-        aap_password: "{{ lookup('env', 'AAP_PASSWORD') }}"
+        aap_hostname: "{{ aap_hostname }}"
+        aap_username: "{{ aap_username }}"
+        aap_password: "{{ aap_password }}"
         aap_validate_certs: false
       register: create_result
 
@@ -32,7 +35,7 @@
         fail_msg: "Role was not created as expected."
 
     - name: Re-run task to check idempotency
-      ansible.platform.role_definition: *id_tc_rdef_003
+      ansible.platform.role_definition: *id_tc_rdef_001
       register: idempotency_result
 
     - name: Assert idempotency

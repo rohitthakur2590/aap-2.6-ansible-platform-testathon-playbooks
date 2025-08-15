@@ -1,0 +1,5 @@
+aap_hostname: "http://localhost:44926"
+aap_username: "admin"
+aap_validate_certs: false
+aap_request_timeout: 60
+aap_password: "ansible"

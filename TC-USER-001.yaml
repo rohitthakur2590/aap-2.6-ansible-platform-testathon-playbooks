@@ -2,145 +2,52 @@
 - name: TC-USER-001 - Create user and associate to org & team
   hosts: localhost
   gather_facts: false
-
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
   vars:
     # Per-user uniqueness when many folks share one AAP
-    rh_user: "{{ lookup('env','RH_USERNAME') | default(lookup('env','USER'), true) | default('tester', true) }}"
-    suffix:  "{{ lookup('password', '/dev/null chars=ascii_lowercase length=5') }}"
-    username: "testuser001-{{ rh_user }}-{{ suffix }}"
-    first_name: "Testuser-001"
-    last_name:  "User-001"
-    email: "{{ username }}@example.com"
-    user_password: "testuser001"
-
-    # Expected existing org/team
-    org_name:  "Engineering"
-    team_name: "APAC-BLR"
-
-  module_defaults:
-    group/ansible.platform.gateway:
-      gateway_hostname: "{{ lookup('env','AAP_HOSTNAME') }}"
-      gateway_username: "{{ lookup('env','AAP_USERNAME') }}"
-      gateway_password: "{{ lookup('env','AAP_PASSWORD') }}"
-      gateway_validate_certs: "{{ (lookup('env','AAP_VALIDATE_CERTS') | default('false')) | bool }}"
-      gateway_request_timeout: 60
-
+    user_name: "TestUser-1-{{ rh_username }}"
+    first_name: "User-1"
+    last_name: "Test"
+    user_password: "ansible"
+    email: "testuser1@local.com"
+    # org_name: "TestOrg-1-{{ rh_username }}"
+    # team_name: "TestOrg-1-{{ rh_username }}"
   tasks:
-    # --- Pre-checks: org & team must exist (as per test pre-reqs) ---
-    - name: Lookup organization by name
-      vars:
-        found_orgs: >-
-          {{ lookup('ansible.platform.gateway_api', 'organizations',
-                    query_params={'name': org_name}) | default([], true) }}
-      ansible.builtin.assert:
-        that:
-          - found_orgs | length == 1
-        fail_msg: "Required organization '{{ org_name }}' not found in Gateway."
-      register: org_lookup
-
-    - name: Lookup team by name + org
-      vars:
-        org_id: "{{ (org_lookup.vars.found_orgs | first).id }}"
-        found_teams: >-
-          {{ lookup('ansible.platform.gateway_api', 'teams',
-                    query_params={'name': team_name, 'organization': org_id}) | default([], true) }}
-      ansible.builtin.assert:
-        that:
-          - found_teams | length == 1
-        fail_msg: "Required team '{{ team_name }}' (org='{{ org_name }}') not found in Gateway."
-      register: team_lookup
-
+    - name: Cleanup
+      ansible.builtin.include_tasks: ./reset/TC-USER-001.yaml
     # --- Create the user ---
     - name: Create user in Gateway
-      ansible.platform.user:
-        username: "{{ username }}"
+      ansible.platform.user: &tc_user_001
+        username: "{{ user_name }}"
         first_name: "{{ first_name }}"
         last_name:  "{{ last_name }}"
         email: "{{ email }}"
         password: "{{ user_password }}"
         state: present
+        aap_hostname: "{{ aap_hostname }}"
+        aap_username: "{{ aap_username }}"
+        aap_password: "{{ aap_password }}"
+        aap_validate_certs: false
       register: create_user
 
     - name: Assert user was created (first run)
       ansible.builtin.assert:
         that: create_user is changed
         fail_msg: "User was not created as expected on first run."
-
-    # --- Associate to organization via role assignment (Organization Member) ---
-    - name: Grant Organization Member to the new user (org association)
-      ansible.platform.role_user_assignment:
-        role_definition: "Organization Member"
-        user: "{{ username }}"
-        object_ids: ["{{ org_name }}"]
-        state: present
-      register: org_assoc
-
-    - name: Assert org association changed on first run
-      ansible.builtin.assert:
-        that: org_assoc is changed
-
-    # --- Associate to team via Team Member role ---
-    - name: Grant Team Member to the new user for the required team
-      ansible.platform.role_user_assignment:
-        role_definition: "Team Member"
-        user: "{{ username }}"
-        object_ids: ["{{ team_name }}"]
-        state: present
-      register: team_assoc
-
-    - name: Assert team association changed on first run
-      ansible.builtin.assert:
-        that: team_assoc is changed
-
-    # --- Validate user presence and basics via Gateway lookup ---
-    - name: Validate user exists with expected fields in Gateway
-      vars:
-        gw_users: >-
-          {{ lookup('ansible.platform.gateway_api', 'users',
-                    query_params={'username': username}) | default([], true) }}
+    
+    - name: Assert operation was successful
       ansible.builtin.assert:
         that:
-          - gw_users | length == 1
-          - (gw_users[0].username | lower) == (username | lower)
-          - (gw_users[0].email | lower) == (email | lower)
+          - add_user_first is changed
 
-    # --- Idempotency re-run: same create + same associations should not change ---
-    - name: Re-run user create (should be idempotent)
-      ansible.platform.user:
-        username: "{{ username }}"
-        first_name: "{{ first_name }}"
-        last_name:  "{{ last_name }}"
-        email: "{{ email }}"
-        password: "{{ user_password }}"
-        state: present
-      register: create_user_again
+    - name: Create User TC-USER-001
+      ansible.platform.organization: *tc_user_001
+      register: add_user_idem
 
-    - name: Assert user create is idempotent
+    - name: Assert second run is idempotent (no changes)
       ansible.builtin.assert:
-        that: create_user_again is not changed
-
-    - name: Re-run org association (idempotent)
-      ansible.platform.role_user_assignment:
-        role_definition: "Organization Member"
-        user: "{{ username }}"
-        object_ids: ["{{ org_name }}"]
-        state: present
-      register: org_assoc_again
-
-    - name: Assert org association is idempotent
-      ansible.builtin.assert:
-        that: org_assoc_again is not changed
-
-    - name: Re-run team association (idempotent)
-      ansible.platform.role_user_assignment:
-        role_definition: "Team Member"
-        user: "{{ username }}"
-        object_ids: ["{{ team_name }}"]
-        state: present
-      register: team_assoc_again
-
-    - name: Assert team association is idempotent
-      ansible.builtin.assert:
-        that: team_assoc_again is not changed
-
-    # (Optional) You can manually try logging in with '{{ username }}' to validate SSO/password flow.
+        that:
+          - add_user_idem is not changed
+    

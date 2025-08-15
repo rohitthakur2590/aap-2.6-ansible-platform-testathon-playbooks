@@ -1,0 +1,14 @@
+---
+- name: Cleanup
+  ansible.builtin.include_tasks: ./reset/TC-ORG-001.yaml
+
+- name: Delete team under org TC-TEAM-001
+  ansible.platform.team: &tc_team_001
+    name: "{{ team_name }}"
+    organization: "{{ org_name }}"
+    description: Bangalore site operations
+    state: absent
+    aap_hostname: "{{ aap_hostname }}"
+    aap_username: "{{ aap_username }}"
+    aap_password: "{{ aap_password }}"
+    aap_validate_certs: false
