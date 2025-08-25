@@ -1,0 +1,106 @@
+---
+- name: TC-RDEF-EDA-001 - Rename an EDA Role Definition (eventstream) with Specific Permissions
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
+
+  vars:
+    # Match your “right config”
+    role_name: "EDA-ROLE-01-{{ rh_username }}"
+    new_role_name: "New-EDA-ROLE-01-{{ rh_username }}"
+    eda_content_type: eda.eventstream
+    eda_permissions:
+      - eda.change_eventstream
+      - eda.delete_eventstream
+      - eda.view_eventstream
+    eda_description: "eda role testing"
+
+  tasks:
+    - block:
+        - name: Role name
+          ansible.builtin.debug:
+            msg: "{{ role_name }}"
+
+        - name: Create EDA role definition (eventstream)
+          ansible.platform.role_definition: &rdef_eda
+            name: "{{ role_name }}"
+            new_name: "{{ new_role_name }}"
+            description: "{{ eda_description }}"
+            content_type: "{{ eda_content_type }}"
+            permissions: "{{ eda_permissions }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: false
+          register: create_result
+
+        - name: Assert EDA role was created
+          ansible.builtin.assert:
+            that:
+              - create_result is changed
+            fail_msg: "EDA role was not created as expected."
+
+        # ---- Verify via EDA API (Gateway→EDA path) ----
+        - name: Fetch role via EDA API by name filter
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/eda/v1/role_definitions/?name__icontains={{ new_role_name | urlencode }}&page_size=2000"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: tru‘New-EDA-ROLE-01-”{{ rh_username }}”e
+          register: eda_list
+
+        - name: Ensure at least one matching role returned
+          ansible.builtin.assert:
+            that:
+              - eda_list.json.count | int >= 1
+            fail_msg: "EDA API did not return the created role."
+
+        - name: Pick the exact role (name equals)
+          ansible.builtin.set_fact:
+            eda_role: >-
+              {{
+                (eda_list.json.results | selectattr('name','equalto', new_role_name) | list | first)
+              }}
+
+        - name: Assert role fields match (content_type, description, permissions)
+          ansible.builtin.assert:
+            that:
+              - eda_role is defined
+              - eda_role.content_type == eda_content_type
+              - eda_role.description == eda_description
+              # Compare permissions order-independently
+              - (eda_role.permissions | sort) == (eda_permissions | sort)
+            fail_msg: "EDA role fields do not match expected values."
+
+        # ---- (Optional) Check mode probe ----
+        - name: Check mode probe (should report no change)
+          ansible.platform.role_definition:
+            name: "{{ role_name }}"
+            new_name: "{{ new_role_name }}"
+            description: "{{ eda_description }}"
+            content_type: "{{ eda_content_type }}"
+            permissions: "{{ eda_permissions }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: false
+          check_mode: true
+          register: cm_probe
+
+        - name: Assert check mode did not report change for identical spec
+          ansible.builtin.assert:
+            that:
+              - cm_probe is not changed
+            fail_msg: "Check mode reported change unexpectedly."
+      always:
+        - name: Exit 1487-1-7-TC-RDEF-EDA-01
+          ansible.builtin.debug:
+            msg: "Exit 1487-1-7-TC-RDEF-EDA-01"
