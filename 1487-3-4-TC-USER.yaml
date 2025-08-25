@@ -1,0 +1,95 @@
+---
+- name: 1487-3-4-TC-USER-UPDATE-01 - Update Platform User fields and verify idempotency
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    # Existing user created in prior test
+    plat_username: "USER-01-{{ rh_username }}"
+
+    # New values to update
+    new_email: "updated.{{ rh_username }}@example.com"
+    new_first: "UpdatedFirst"
+    new_last:  "UpdatedLast"
+    new_is_superuser: true      # toggle; set false if you prefer
+
+  tasks:
+    - block:
+        - name: Update platform user profile fields
+          ansible.platform.user: &user_update
+            username: "{{ plat_username }}"
+            email: "{{ new_email }}"
+            first_name: "{{ new_first }}"
+            last_name: "{{ new_last }}"
+            is_superuser: "{{ new_is_superuser }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: update_result
+
+        - name: Assert update caused change
+          ansible.builtin.assert:
+            that: [ "update_result is changed" ]
+            fail_msg: "User update did not report changed."
+
+        # ---- Verify via Gateway API (source of truth for platform users)
+        - name: Fetch user from Gateway
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/users/?username={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_user_list
+
+        - name: Pick exact user object
+          ansible.builtin.set_fact:
+            gw_user: "{{ (gw_user_list.json.results | selectattr('username','equalto', plat_username) | list | first) }}"
+
+        - name: Assert fields updated on platform
+          ansible.builtin.assert:
+            that:
+              - gw_user is defined
+              - gw_user.email == new_email
+              - gw_user.first_name == new_first
+              - gw_user.last_name == new_last
+              # superuser flag may surface as 'is_superuser' on gateway payload
+              - (gw_user.is_superuser | default(false)) == new_is_superuser
+            fail_msg: "Gateway user fields do not match updated values."
+
+        # ---- Idempotency: run again with same spec (no change expected)
+        - name: Idempotency check
+          ansible.platform.user: *user_update
+          register: idem
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that: [ "idem is not changed" ]
+            fail_msg: "User update not idempotent."
+
+        # ---- (Optional) Check mode probe: should report no change now
+        - name: Check mode probe (should be no change)
+          ansible.platform.user:
+            username: "{{ plat_username }}"
+            email: "{{ new_email }}"
+            first_name: "{{ new_first }}"
+            last_name: "{{ new_last }}"
+            is_superuser: "{{ new_is_superuser }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          check_mode: true
+          register: cm
+        - ansible.builtin.assert:
+            that: [ "cm is not changed" ]
+            fail_msg: "Check mode incorrectly reported change."
+      always:
+        - debug: { msg: "Exit 1487-3-4-TC-USER-UPDATE-01" }

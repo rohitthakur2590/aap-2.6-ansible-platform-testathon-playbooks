@@ -1,0 +1,91 @@
+---
+
+- name: 1487-3-3-TC-USER-01 - Create Platform user
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    plat_username: "USER-01-{{ rh_username }}"
+    plat_password: "Str0ngP@ss!23"
+    plat_email: "USER-01-{{ rh_username }}@example.com"
+    plat_first: "USER-01"
+    plat_last: "{{ rh_username }}"
+    plat_is_superuser: false
+
+  tasks:
+    - block:
+        - name: Create platform user
+          ansible.platform.user: &plat_user
+            username: "{{ plat_username }}"
+            password: "{{ plat_password }}"
+            email: "{{ plat_email }}"
+            first_name: "{{ plat_first }}"
+            last_name: "{{ plat_last }}"
+            is_superuser: "{{ plat_is_superuser }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: create_result
+
+        - name: Assert created
+          ansible.builtin.assert:
+            that: [ "create_result is changed" ]
+
+        - name: Idempotency
+          ansible.platform.user: *plat_user
+          register: idem
+        - ansible.builtin.assert:
+            that: [ "idem is not changed" ]
+
+        # --- Verify on Gateway (platform users)
+        - name: Verify via Gateway users API
+          uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/users/?username={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_users
+
+        - assert:
+            that:
+              - gw_users.json.count | int >= 1
+              - (gw_users.json.results | selectattr('username','equalto', plat_username) | list | length) >= 1
+
+        # --- Optional: verify materialization in Controller & EDA
+        - name: Check Controller user presence
+          uri:
+            url: "{{ aap_hostname }}/api/controller/v2/users/?username={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: ctl_users
+
+        - name: Check EDA user presence
+          uri:
+            url: "{{ aap_hostname }}/api/eda/v1/users/?username={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: eda_users
+
+        - name: Log service user visibility (may be 0 until first use)
+          debug:
+            msg:
+              controller_count: "{{ ctl_users.json.count | default('n/a') }}"
+              eda_count: "{{ eda_users.json.count | default('n/a') }}"
+      always:
+        - debug: { msg: "Exit 1487-3-3-TC-USER-01" }

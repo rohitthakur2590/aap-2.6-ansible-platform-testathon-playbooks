@@ -1,0 +1,101 @@
+---
+- name: 1487-3-5-TC-USER-DELETE - Delete Platform User and verify idempotency
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    plat_username: "USER-01-{{ rh_username }}"   # user created in prior tests
+
+  tasks:
+    - block:
+        - name: Delete platform user
+          ansible.platform.user: &user_delete
+            username: "{{ plat_username }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: delete_result
+
+        - name: Assert deletion happened
+          ansible.builtin.assert:
+            that: [ "delete_result is changed" ]
+            fail_msg: "User was not deleted as expected."
+
+        # --- Verify deletion at Gateway
+        - name: Verify user no longer exists in Gateway
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/users/?username={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_user_list
+
+        - name: Assert no results returned
+          ansible.builtin.assert:
+            that:
+              - gw_user_list.json.count | int == 0
+            fail_msg: "Deleted user still visible in Gateway."
+
+        # --- Idempotency: delete again should not change anything
+        - name: Delete user again (idempotency check)
+          ansible.platform.user: *user_delete
+          register: delete_again
+
+        - name: Assert second delete is idempotent
+          ansible.builtin.assert:
+            that: [ "delete_again is not changed" ]
+            fail_msg: "Second delete run should have been idempotent."
+
+        # --- Optional: verify absence in service APIs if user was materialized
+        - name: Verify absence in Controller
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/controller/v2/users/?username={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: ctl_users
+          failed_when: false
+
+        - name: Verify absence in EDA
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/eda/v1/users/?username={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: eda_users
+          failed_when: false
+
+        - name: Verify absence in Hub (Galaxy UI path)
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/galaxy/_ui/v1/me/?name={{ plat_username | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: hub_users
+          failed_when: false
+
+        - name: Debug service API user counts (may return empty or 404)
+          debug:
+            msg:
+              controller_count: "{{ ctl_users.json.count | default('n/a') }}"
+              eda_count: "{{ eda_users.json.count | default('n/a') }}"
+              hub_response: "{{ hub_users.status | default('n/a') }}"
+      always:
+        - debug: { msg: "Exit 1487-3-5-TC-USER-DELETE" }
