@@ -1,0 +1,51 @@
+---
+- name: 1487-1-3-TC-RDEF-003 - Update Description Only
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
+  vars:
+    # Change this to your Red Hat username so names are unique
+    role_name: "New-TestRole-1-{{ rh_username }}"
+
+  tasks:
+  - block:
+      - name: Role name
+        ansible.builtin.debug:
+          msg: "{{ role_name }}"
+
+      - name: Update role description
+        ansible.platform.role_definition: &id_tc_rdef_003
+          name: "{{ role_name  }}"
+          description: Grants change/view inventory access (Updated)
+          content_type: awx.inventory
+          permissions:
+            - awx.view_inventory
+            - awx.change_inventory
+          state: present
+          aap_hostname: "{{ aap_hostname }}"
+          aap_username: "{{ aap_username }}"
+          aap_password: "{{ aap_password }}"
+          aap_validate_certs: false
+        register: update_desc_first
+
+
+      - name: Assert rename was successful
+        ansible.builtin.assert:
+          that:
+            - update_desc_first is changed
+
+      - name: Re-run to verify idempotency
+        ansible.platform.role_definition: *id_tc_rdef_003
+        register: idem_result_check
+
+      - name: Assert second run is idempotent (no changes)
+        ansible.builtin.assert:
+          that:
+            - idem_result_check is not changed
+    always:
+      - name: Exit Test 1487-1-3
+        ansible.builtin.debug:
+          msg: "Exit test 1487-1-3" 

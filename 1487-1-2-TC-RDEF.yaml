@@ -1,0 +1,52 @@
+---
+- name: TC-RDEF-001 - Update a Role definition with Specific Permissions
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
+  vars:
+    role_name: "TestRole-1-{{ rh_username }}"
+
+  tasks:
+  - block:
+      # - name: Cleanup
+      #   ansible.builtin.include_tasks: ./1487-1-1-TC.yaml
+       
+      - name: Set new role name
+        ansible.builtin.set_fact:
+          new_role_name: "New-{{ role_name }}" 
+  
+      - name: Role name
+        ansible.builtin.debug:
+          msg: "{{ new_role_name }}"
+    
+      - name: Create a role definition with permissions
+        ansible.platform.role_definition: &id_tc_rdef_001
+          name: "{{ role_name }}"
+          new_name: "{{ new_role_name }}"
+          description: "Grants change/view inventory access"
+          content_type: awx.inventory
+          permissions:
+            - awx.view_inventory
+            - awx.change_inventory
+          state: present
+          aap_hostname: "{{ aap_hostname }}"
+          aap_username: "{{ aap_username }}"
+          aap_password: "{{ aap_password }}"
+          aap_validate_certs: false
+        register: create_result
+
+      - name: Assert role was updated
+        ansible.builtin.assert:
+          that:
+            - create_result is changed
+          fail_msg: "Role was not created as expected."
+
+    always:
+      - name: Exit Test 1487-1-2
+        ansible.builtin.debug:
+          msg: "Exit test 1487-1-2" 
+         
+      

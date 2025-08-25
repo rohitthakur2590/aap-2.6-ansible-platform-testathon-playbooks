@@ -1,0 +1,56 @@
+---
+- name: TC-RDEF-001 - Create a Role Definition with Specific Permissions
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
+  vars:
+    role_name: "TestRole-1-{{ rh_username }}"
+
+  tasks:
+  - block:
+      - name: Cleanup
+        ansible.builtin.include_tasks: ./reset/1487-1-1-TC-RDEF-001.yaml
+
+      - name: Role name
+        ansible.builtin.debug:
+          msg: "{{ role_name }}"
+    
+      - name: Create a role definition with permissions
+        ansible.platform.role_definition: &id_tc_rdef_001
+          name: "{{ role_name }}"
+          description: "Grants change/view inventory access"
+          content_type: awx.inventory
+          permissions:
+            - awx.view_inventory
+            - awx.change_inventory
+          state: present
+          aap_hostname: "{{ aap_hostname }}"
+          aap_username: "{{ aap_username }}"
+          aap_password: "{{ aap_password }}"
+          aap_validate_certs: false
+        register: create_result
+
+      - name: Assert role was created
+        ansible.builtin.assert:
+          that:
+            - create_result is changed
+          fail_msg: "Role was not created as expected."
+
+      - name: Re-run task to check idempotency
+        ansible.platform.role_definition: *id_tc_rdef_001
+        register: idempotency_result
+
+      - name: Assert idempotency
+        ansible.builtin.assert:
+          that:
+            - idempotency_result is not changed
+          fail_msg: "Role creation task was not idempotent."
+    always:
+      - name: Exit Test 1487-1-1
+        ansible.builtin.debug:
+          msg: "Exit test 1487-1-1" 
+         
+      

@@ -1,0 +1,51 @@
+---
+- name: TC-RDEF-006 - Delete Role
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/user.yml
+    - ./vars/aap.yml
+  vars:
+    # Change this to your Red Hat username so names are unique
+    role_name: "New-TestRole-1-{{ rh_username }}"
+
+  tasks:
+  - block:
+      - name: Role name
+        ansible.builtin.debug:
+          msg: "{{ role_name }}"
+    
+      # First deletion
+      - name: Delete role
+        ansible.platform.role_definition: &id_tc_rdef_006
+          name: "{{ role_name }}"
+          content_type: awx.inventory
+          permissions:
+            - awx.view_inventory
+            - awx.change_inventory
+            - awx.delete_inventory
+            - awx.update_invento
+          state: absent
+          aap_hostname: "{{ aap_hostname }}"
+          aap_username: "{{ aap_username }}"
+          aap_password: "{{ aap_password }}"
+          aap_validate_certs: false
+        register: delete_first
+
+      - name: Assert deletion was successful
+        ansible.builtin.assert:
+          that:
+            - delete_first is changed
+
+      - name: Re-run task to verify idempotency
+        ansible.platform.role_definition: *id_tc_rdef_006
+        register: idem_role
+
+      - name: Assert second run is idempotent (no changes)
+        ansible.builtin.assert:
+          that:
+            - idem_role is not changed
+    always:
+      - name: Exit Test 1487-1-5
+        ansible.builtin.debug:
+          msg: "Exit test 1487-1-5" 
