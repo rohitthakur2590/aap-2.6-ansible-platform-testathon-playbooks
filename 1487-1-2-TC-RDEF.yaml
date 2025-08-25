@@ -1,5 +1,5 @@
 ---
-- name: TC-RDEF-001 - Update a Role definition with Specific Permissions
+- name: TC-RDEF-001 - Update a Role definition with new name
   hosts: localhost
   gather_facts: false
 
