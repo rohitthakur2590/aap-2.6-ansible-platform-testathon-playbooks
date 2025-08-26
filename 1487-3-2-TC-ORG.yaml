@@ -1,0 +1,61 @@
+---
+- name: 1487-3-2-TC-ORG - Delete Platform Organization
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-RENAMED-{{ rh_username }}"   # or original name if not renamed
+
+  tasks:
+    - block:
+        - name: Delete org
+          ansible.platform.organization: &org_delete
+            name: "{{ org_name }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: deleted
+
+        - name: Assert deletion happened
+          ansible.builtin.assert:
+            that: [ "deleted is changed" ]
+            fail_msg: "Organization delete did not report changed."
+
+        # ---- Verify absence in Gateway
+        - name: Verify org not in Gateway
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/organizations/?name={{ org_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_orgs
+
+        - name: Display total org count
+          ansible.builtin.debug:
+            msg: "{{ gw_orgs }}"
+
+        - name: Assert no org found
+          ansible.builtin.assert:
+            that:
+              - gw_orgs.json.count | int == 0
+            fail_msg: "Deleted org still visible in Gateway."
+
+        # ---- Idempotency
+        - name: Delete again (should be no change)
+          ansible.platform.organization: *org_delete
+          register: idem
+
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that: [ "idem is not changed" ]
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-3-2-TC-ORG"

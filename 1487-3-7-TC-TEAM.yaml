@@ -1,0 +1,73 @@
+---
+- name: 1487-3-7-TC-TEAM - Rename/Update Platform Team
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-{{ rh_username }}"
+    old_team_name: "APAC-BLR-{{ rh_username }}"
+    new_team_name: "APAC-BLR-RENAMED-{{ rh_username }}"
+    new_team_description: "Updated team APAC-BLR for {{ rh_username }}"
+
+  tasks:
+    - block:
+        - name: Update team (rename & description)
+          ansible.platform.team: &team_update
+            name: "{{ old_team_name }}"
+            new_name: "{{ new_team_name }}"
+            organization: "{{ org_name }}"
+            description: "{{ new_team_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: updated
+
+        - name: Assert update caused change
+          ansible.builtin.assert:
+            that: [ "updated is changed" ]
+            fail_msg: "Team update did not report changed."
+
+        # ---- Verify new name in Gateway
+        - name: Verify renamed team via Gateway
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/teams/?name={{ new_team_name | urlencode }}&organization__name={{ org_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_teams
+
+        - name: Assert Gateway shows updated team
+          ansible.builtin.assert:
+            that:
+              - gw_teams.json.count | int >= 1
+              - (gw_teams.json.results | selectattr('name','equalto', new_team_name) | list | length) >= 1
+            fail_msg: "Renamed team not visible in Gateway."
+
+        # ---- Verify new name in Controller
+        - name: Verify renamed team in Controller
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/controller/v2/teams/?name={{ new_team_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: ctl_teams
+
+        - name: Log Controller team count
+          ansible.builtin.debug:
+            msg:
+              controller_count: "{{ ctl_teams.json.count | default('n/a') }}"
+
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-3-7-TC-TEAM"

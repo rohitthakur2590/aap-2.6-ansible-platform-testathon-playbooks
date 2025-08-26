@@ -1,0 +1,105 @@
+---
+- name: 1487-3-6-TC-TEAM - Create Platform Team and verify idempotency
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-{{ rh_username }}"         # must already exist (from org tests)
+    team_name: "APAC-BLR-{{ rh_username }}"
+    team_description: "Team APAC-BLR for {{ rh_username }}"
+    org_description: "Engineering org for {{ rh_username }}"
+
+  tasks:
+    - block:
+        # Precondition -------------------------------------- 1
+        - name: Create platform organization
+          ansible.platform.organization: &org_create
+            name: "{{ org_name }}"
+            description: "{{ org_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: created
+
+        - name: Assert org was created
+          ansible.builtin.assert:
+            that: [ "created is changed" ]
+            fail_msg: "Organization was not created."
+
+        
+        # Create team
+        - name: Create platform team
+          ansible.platform.team: &team_create
+            name: "{{ team_name }}"
+            organization: "{{ org_name }}"
+            description: "{{ team_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: created
+
+        - name: Assert team was created
+          ansible.builtin.assert:
+            that: [ "created is changed" ]
+            fail_msg: "Team was not created."
+
+        # ---- Verify via Gateway (source of truth for platform objects)
+        - name: Verify team via Gateway API
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/teams/?name={{ team_name | urlencode }}&organization__name={{ org_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_teams
+
+        - name: Pick exact team from Gateway results
+          ansible.builtin.set_fact:
+            gw_team: "{{ (gw_teams.json.results | selectattr('name','equalto', team_name) | list | first) }}"
+
+        - name: Assert Gateway fields
+          ansible.builtin.assert:
+            that:
+              - gw_team is defined
+              - gw_team.name == team_name
+              - (gw_team.description | default('')) == team_description
+            fail_msg: "Gateway team fields do not match."
+
+        # ---- Verify visibility in Controller (propagation)
+        - name: Verify team in Controller API
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/controller/v2/teams/?name={{ team_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: ctl_teams
+
+        - name: Log Controller team count (expect >=1 once propagated)
+          ansible.builtin.debug:
+            msg:
+              controller_count: "{{ ctl_teams.json.count | default('n/a') }}"
+
+        # ---- Idempotency
+        - name: Re-run same spec (should be idempotent)
+          ansible.platform.team: *team_create
+          register: idem
+
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that: [ "idem is not changed" ]
+            fail_msg: "Team create not idempotent."
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-3-6-TC-TEAM" 

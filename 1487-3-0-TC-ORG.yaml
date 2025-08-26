@@ -1,0 +1,101 @@
+---
+- name: 1487-TC-3-0-ORG - Create Platform Organization and verify idempotency
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-{{ rh_username }}"
+    org_description: "Engineering org for {{ rh_username }}"
+
+  tasks:
+    - block:
+        - name: Create platform organization
+          ansible.platform.organization: &org_create
+            name: "{{ org_name }}"
+            description: "{{ org_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: created
+
+        - name: Assert org was created
+          ansible.builtin.assert:
+            that: [ "created is changed" ]
+            fail_msg: "Organization was not created."
+
+        # ---- Verify via Gateway (source of truth)
+        - name: Verify org via Gateway API
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/organizations/?name={{ org_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_orgs
+
+        - name: Pick exact org from Gateway results
+          ansible.builtin.set_fact:
+            gw_org: "{{ (gw_orgs.json.results | selectattr('name','equalto', org_name) | list | first) }}"
+
+        - name: Assert Gateway fields
+          ansible.builtin.assert:
+            that:
+              - gw_org is defined
+              - gw_org.name == org_name
+              - (gw_org.description | default('')) == org_description
+            fail_msg: "Gateway org fields do not match."
+
+        # ---- Verify visibility in Controller (propagation)
+        - name: Verify org in Controller API
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/controller/v2/organizations/?name={{ org_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: ctl_orgs
+
+        - name: Log Controller org count (expect >=1 once propagated)
+          ansible.builtin.debug:
+            msg:
+              controller_count: "{{ ctl_orgs.json.count | default('n/a') }}"
+
+        # ---- Optional: EDA (build-dependent)
+        - name: Verify org in EDA API (optional; may not exist in some builds)
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/eda/v1/organizations/?name={{ org_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: eda_orgs
+          failed_when: false
+
+        - name: Log EDA org count
+          ansible.builtin.debug:
+            msg:
+              eda_count: "{{ eda_orgs.json.count | default('n/a') }}"
+
+        # ---- Idempotency
+        - name: Re-run same spec (should be idempotent)
+          ansible.platform.organization: *org_create
+          register: idem
+
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that: [ "idem is not changed" ]
+            fail_msg: "Organization create not idempotent."
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-3-0-TC-ORG"

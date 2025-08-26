@@ -1,0 +1,59 @@
+---
+- name: 1487-3-8-TC-TEAM - Delete Platform Team
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-{{ rh_username }}"
+    team_name: "APAC-BLR-RENAMED-{{ rh_username }}"   # or original name if not renamed
+
+  tasks:
+    - block:
+        - name: Delete team
+          ansible.platform.team: &team_delete
+            name: "{{ team_name }}"
+            organization: "{{ org_name }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: deleted
+
+        - name: Assert deletion happened
+          ansible.builtin.assert:
+            that: [ "deleted is changed" ]
+            fail_msg: "Team delete did not report changed."
+
+        # ---- Verify absence in Gateway
+        - name: Verify team not in Gateway
+          ansible.builtin.uri:
+            url: "{{ aap_hostname }}/api/gateway/v1/teams/?name={{ team_name | urlencode }}&organization__name={{ org_name | urlencode }}"
+            method: GET
+            user: "{{ aap_username }}"
+            password: "{{ aap_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            return_content: true
+          register: gw_teams
+
+        - name: Assert no team found
+          ansible.builtin.assert:
+            that:
+              - gw_teams.json.count | int == 0
+            fail_msg: "Deleted team still visible in Gateway."
+
+        # ---- Idempotency
+        - name: Delete again (should be no change)
+          ansible.platform.team: *team_delete
+          register: idem
+
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that: [ "idem is not changed" ]
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-3-8-TC-TEAM"
