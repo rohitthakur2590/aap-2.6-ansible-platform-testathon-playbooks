@@ -54,6 +54,16 @@
         - name: Assert idempotency
           ansible.builtin.assert:
             that: [ "idem is not changed" ]
+        
+        - name: Delete org
+          ansible.platform.organization: &org_delete
+            name: "{{ org_name }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: deleted
       always:
         - ansible.builtin.debug:
             msg: "Exit 1487-3-8-TC-TEAM"
