@@ -5,7 +5,7 @@ The test set covers organizations, teams, users, role definitions, and role→te
 ---
 ## 1) Setup & Preparation
 
-### Step 1: Fork/Clone the Repo
+### Step 1: Fork the Repo
 - Fork or clone this repository:  
    [aap-2.6-ansible-platform-testathon-playbooks](https://github.com/rohitthakur2590/aap-2.6-ansible-platform-testathon-playbooks)
 
