@@ -90,7 +90,7 @@ pip install "ansible-core=2.18"  # or `pip install ansible`
 # clone the collection source
 git clone https://github.com/ansible/ansible.platform.git -b devel
 cd ansible.platform
-
+```
 ### 5.3  Get playbooks and Configure Vars (same as GUI path)
 - Clone this repo for playbooks (https://github.com/rohitthakur2590/aap-2.6-ansible-platform-testathon-playbooks)
 - Update `vars/aap.yml` with your **AAP URL**, **admin username**, **password**, and `aap_validate_certs` as appropriate (set `false` for self-signed).
@@ -99,5 +99,5 @@ cd ansible.platform
 ### 5.4 Run a test
 ```bash
 ansible-playbook 1487-1-1-TC-RDEF.yaml -i inventory
-
+```
 Happy testing 🚀
