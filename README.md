@@ -1,5 +1,5 @@
 # aap-2.6-ansible-platform-testathon-playbooks
-This repository contains playbooks for validating the **`ansible.platform`** collection on **AAP 2.6** across Gateway, Controller, EDA, and Automation Hub.  
+This repository contains playbooks for validating the **`ansible.platform`** collection on **AAP 2.6** across components.  
 The test set covers organizations, teams, users, role definitions, and role→team assignments, verifying propagation, idempotency, and RBAC behavior.
 
 ---
