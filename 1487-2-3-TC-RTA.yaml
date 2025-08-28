@@ -1,0 +1,100 @@
+---
+- name: 1487-2-3-TC-RTA - Assign org-scoped role to a team across multiple orgs
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org1: "ENG-ORG-A-{{ rh_username }}"
+    org2: "ENG-ORG-B-{{ rh_username }}"
+    team_name: "APAC-BLR-{{ rh_username }}"
+    role_name: "Organization Inventory Admin"
+
+  tasks:
+    - block:
+        # Orgs
+        - name: Ensure org1 exists
+          ansible.platform.organization:
+            name: "{{ org1 }}"
+            description: "Org A for {{ rh_username }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+        - name: Ensure org2 exists
+          ansible.platform.organization:
+            name: "{{ org2 }}"
+            description: "Org B for {{ rh_username }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        # Team
+        - name: Ensure team exists in org1 (membership org doesn’t matter for assignment scope)
+          ansible.platform.team:
+            name: "{{ team_name }}"
+            organization: "{{ org1 }}"
+            description: "Team for multi-org assignment"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        # Role definition (org-scoped)
+        - name: Ensure org-scoped role definition exists
+          ansible.platform.role_definition:
+            name: "{{ role_name }}"
+            description: "Org-scoped inventory admin"
+            content_type: shared.organization
+            permissions:
+              - awx.view_inventory
+              - awx.add_inventory
+              - awx.change_inventory
+              - awx.delete_inventory
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        # Assign across two orgs in one call
+        - name: Assign role to team on org1 and org2
+          ansible.platform.role_team_assignment: &assign_multi
+            assignment_objects:
+              - name: "{{ org1 }}"
+                type: "organizations"
+              - name: "{{ org2 }}"
+                type: "organizations"
+            role_definition: "{{ role_name }}"
+            team: "{{ team_name }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: assign_res
+
+        - name: Assert assignment created or already present
+          ansible.builtin.assert:
+            that:
+              - assign_res is changed or assign_res is not failed
+
+        # Idempotency
+        - name: Re-run multi-org assignment (idempotent)
+          ansible.platform.role_team_assignment: *assign_multi
+          register: assign_again
+
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that:
+              - assign_again is not changed
+
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-2-3-TC-RTA"
