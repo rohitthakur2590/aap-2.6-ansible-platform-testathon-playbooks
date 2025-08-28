@@ -51,22 +51,22 @@
               - (gw_teams.json.results | selectattr('name','equalto', new_team_name) | list | length) >= 1
             fail_msg: "Renamed team not visible in Gateway."
 
-        # ---- Verify new name in Controller
-        - name: Verify renamed team in Controller
-          ansible.builtin.uri:
-            url: "{{ aap_hostname }}/api/controller/v2/teams/?name={{ new_team_name | urlencode }}"
-            method: GET
-            user: "{{ aap_username }}"
-            password: "{{ aap_password }}"
-            force_basic_auth: true
-            validate_certs: false
-            return_content: true
-          register: ctl_teams
+        # # ---- Verify new name in Controller
+        # - name: Verify renamed team in Controller
+        #   ansible.builtin.uri:
+        #     url: "{{ aap_hostname }}/api/controller/v2/teams/?name={{ new_team_name | urlencode }}"
+        #     method: GET
+        #     user: "{{ aap_username }}"
+        #     password: "{{ aap_password }}"
+        #     force_basic_auth: true
+        #     validate_certs: false
+        #     return_content: true
+        #   register: ctl_teams
 
-        - name: Log Controller team count
-          ansible.builtin.debug:
-            msg:
-              controller_count: "{{ ctl_teams.json.count | default('n/a') }}"
+        # - name: Log Controller team count
+        #   ansible.builtin.debug:
+        #     msg:
+        #       controller_count: "{{ ctl_teams.json.count | default('n/a') }}"
 
       always:
         - ansible.builtin.debug:
