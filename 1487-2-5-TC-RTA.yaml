@@ -1,0 +1,113 @@
+---
+- name: 1487-2-7-TC-RTA - Bulk remove role assignments across multiple orgs
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org1: "ENG-ORG-DEL-A-{{ rh_username }}"
+    org2: "ENG-ORG-DEL-B-{{ rh_username }}"
+    team_name: "APAC-BLR-DEL-{{ rh_username }}"
+    role_name: "Organization Inventory Admin"
+
+  tasks:
+    - block:
+        # Preconditions (create + assign so we can remove)
+        - name: Ensure org1 exists
+          ansible.platform.organization:
+            name: "{{ org1 }}"
+            description: "Delete test org A"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+        - name: Ensure org2 exists
+          ansible.platform.organization:
+            name: "{{ org2 }}"
+            description: "Delete test org B"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        - name: Ensure team exists
+          ansible.platform.team:
+            name: "{{ team_name }}"
+            organization: "{{ org1 }}"
+            description: "Delete test team"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        - name: Ensure role definition exists
+          ansible.platform.role_definition:
+            name: "{{ role_name }}"
+            description: "Org-scoped inventory admin"
+            content_type: shared.organization
+            permissions:
+              - awx.view_inventory
+              - awx.add_inventory
+              - awx.change_inventory
+              - awx.delete_inventory
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        - name: Seed assignments on both orgs (present)
+          ansible.platform.role_team_assignment:
+            assignment_objects:
+              - name: "{{ org1 }}"
+                type: "organizations"
+              - name: "{{ org2 }}"
+                type: "organizations"
+            role_definition: "{{ role_name }}"
+            team: "{{ team_name }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        # Bulk remove (absent)
+        - name: Remove assignments from both orgs
+          ansible.platform.role_team_assignment: &bulk_absent
+            assignment_objects:
+              - name: "{{ org1 }}"
+                type: "organizations"
+              - name: "{{ org2 }}"
+                type: "organizations"
+            role_definition: "{{ role_name }}"
+            team: "{{ team_name }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: del_res
+
+        - name: Assert removal changed
+          ansible.builtin.assert:
+            that:
+              - del_res is changed
+
+        # Idempotent absent
+        - name: Re-run bulk absent (idempotent)
+          ansible.platform.role_team_assignment: *bulk_absent
+          register: del_again
+
+        - name: Assert bulk removal idempotent
+          ansible.builtin.assert:
+            that:
+              - del_again is not changed
+
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-2-7-TC-RTA"
