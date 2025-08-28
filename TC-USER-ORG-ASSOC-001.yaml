@@ -35,6 +35,10 @@
     # Assign org-scoped role to associate user with org
     - name: Associate user to org via role assignment
       ansible.platform.role_user_assignment:
+        aap_hostname: "{{ aap_hostname }}"
+        aap_username: "{{ aap_username }}"
+        aap_password: "{{ aap_password }}"
+        aap_validate_certs: "{{ aap_validate_certs }}"
         role_definition: "{{ org_role }}"
         user: "{{ username }}"
         object_ids:
@@ -49,6 +53,10 @@
     # Idempotency
     - name: Re-run association (idempotent)
       ansible.platform.role_user_assignment:
+        aap_hostname: "{{ aap_hostname }}"
+        aap_username: "{{ aap_username }}"
+        aap_password: "{{ aap_password }}"
+        aap_validate_certs: "{{ aap_validate_certs }}"
         role_definition: "{{ org_role }}"
         user: "{{ username }}"
         object_ids:
