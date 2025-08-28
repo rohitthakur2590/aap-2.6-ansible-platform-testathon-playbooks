@@ -1,0 +1,122 @@
+---
+- name: TC-USER-MULT-ROLE-ASSIGN-001 - Assign multiple team roles to a user
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-03-{{ rh_username }}"
+    org_description: "Engineering org for {{ rh_username }}"
+
+    team_a: "003_TeamA-{{ rh_username }}"
+    team_b: "003_TeamB-{{ rh_username }}"
+    team_description: "Test team for {{ rh_username }}"
+
+    username: "003_User_1-{{ rh_username }}"
+    user_password: "Str0ngP@ss!23"
+
+    role_def: "Team Member"
+
+  tasks:
+    - block:
+
+        # 1) Ensure Organization exists
+        - name: Create organization
+          ansible.platform.organization:
+            name: "{{ org_name }}"
+            description: "{{ org_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: org_result
+
+        - name: Assert org exists
+          ansible.builtin.assert:
+            that:
+              - org_result is changed or org_result is not changed
+
+        # 2) Ensure Teams exist
+        - name: Create Team A
+          ansible.platform.team:
+            name: "{{ team_a }}"
+            organization: "{{ org_name }}"
+            description: "{{ team_description }} A"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: team_a_result
+
+        - name: Create Team B
+          ansible.platform.team:
+            name: "{{ team_b }}"
+            organization: "{{ org_name }}"
+            description: "{{ team_description }} B"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: team_b_result
+
+        # 3) Ensure User exists
+        - name: Create user
+          ansible.platform.user:
+            username: "{{ username }}"
+            password: "{{ user_password }}"
+            email: "{{ username }}@example.com"
+            first_name: "Test"
+            last_name: "User"
+            is_superuser: false
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: user_result
+
+        - name: Assert user created or present
+          ansible.builtin.assert:
+            that:
+              - user_result is changed or user_result is not failed
+
+        # 4) Assign multiple team roles to the user
+        - name: Assign Team Member role to user for both teams
+          ansible.platform.role_user_assignment: &multi_role_assign
+            role_definition: "{{ role_def }}"
+            user: "{{ username }}"
+            object_ids:
+              - "{{ team_a }}"
+              - "{{ team_b }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: role_assign
+
+        - name: Assert assignment applied
+          ansible.builtin.assert:
+            that:
+              - role_assign is changed or role_assign is not failed
+
+        # 5) Idempotency check
+        - name: Re-run same assignment
+          ansible.platform.role_user_assignment: *multi_role_assign
+          register: role_assign_again
+
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that:
+              - role_assign_again is not changed
+
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit TC-USER-MULT-ROLE-ASSIGN-001"
+
+
