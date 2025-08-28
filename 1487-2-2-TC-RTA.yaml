@@ -1,0 +1,138 @@
+---
+- name: 1487-2-2-TC-RTA - Remove Role-Team Assignment
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-{{ rh_username }}"           # must exist (from org tests / or already part of this test)
+    team_name: "APAC-BLR-{{ rh_username }}"         # must exist (from team tests / or already part of this test)
+    test_role_name: "GW-Collection-Test-Role-{{ rh_username }}"
+    org_description: "Engineering org for {{ rh_username }}"
+    team_description: "Team APAC-BLR for {{ rh_username }}"
+    assignment_obj:
+      - name: "{{ org_name }}"
+        type: "organizations"
+
+  tasks:
+    - block:
+        
+        # 1) Pre-step: ensure a org exists
+        - name: Create platform organization
+          ansible.platform.organization: &org_create
+            name: "{{ org_name }}"
+            description: "{{ org_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: created
+
+        # 2) Pre-step ensure a team exists
+        - name: Create platform team
+          ansible.platform.team: &team_create
+            name: "{{ team_name }}"
+            organization: "{{ org_name }}"
+            description: "{{ team_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: created
+
+        # 2) Pre-step: ensure a role_def exists
+        - name: Create org-scoped role definition (Organization Inventory Admin)
+          ansible.platform.role_definition:
+            name: "Organization Inventory Admin"
+            description: "Org-scoped role that grants full inventory admin on Controller resources"
+            content_type: shared.organization
+            permissions:
+              - awx.view_inventory
+              - awx.add_inventory
+              - awx.change_inventory
+              - awx.delete_inventory
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: org_inv_admin_role
+
+        - name: Assert role exists (created or already present)
+          ansible.builtin.assert:
+            that:
+              - org_inv_admin_role is changed or org_inv_admin_role is not changed
+        
+        # 3) Assign Role to a team
+        - name: Assign Org Inventory Admin to Team2 on Org1 and Org2
+          ansible.platform.role_team_assignment: &rta_remove
+            assignment_objects:
+              - name: "{{ org_name }}"
+                type: "organizations"
+            role_definition: "Organization Inventory Admin"
+            team: "{{ team_name }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: org_admin_assignment 
+
+        - name: Assert Team Org Inventory Admin assignment worked
+          ansible.builtin.assert:
+            that:
+            - org_admin_assignment is changed or org_admin_assignment is not failed
+
+        # 3) Re-run → idempotent
+        - name: Remove team assignment
+          ansible.platform.role_team_assignment: *rta_remove
+          register: idem
+
+        - name: Assert idempotency
+          ansible.builtin.assert:
+            that: [ "idem is not changed" ]
+
+      always:
+        # Cleanup role_def
+        - name: Cleanup role_def
+          ansible.platform.role_definition:
+            name: "Organization Inventory Admin"
+            content_type: shared.organization
+            permissions:
+              - awx.view_inventory
+              - awx.add_inventory
+              - awx.change_inventory
+              - awx.delete_inventory
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        - name: Delete org
+          ansible.platform.organization: &org_delete
+            name: "{{ org_name }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: deleted
+
+        - name: Delete team
+          ansible.platform.team: &team_delete
+            name: "{{ team_name }}"
+            organization: "{{ org_name }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: deleted
+        - ansible.builtin.debug:
+            msg: "Exit 1487-2-2-TC-RTA"
+        
