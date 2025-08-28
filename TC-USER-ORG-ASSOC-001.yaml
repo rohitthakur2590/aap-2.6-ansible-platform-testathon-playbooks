@@ -9,9 +9,20 @@
   vars:
     org_name: "ENG-ORG-{{ rh_username }}"
     org_role: "Organization Auditor"     # or Organization Admin / Organization Viewer
+    org_description: "Engineering org for {{ rh_username }}"
 
   tasks:
     # Pre-req checks per spec
+    - name: Create platform organization
+          ansible.platform.organization: &org_create
+            name: "{{ org_name }}"
+            description: "{{ org_description }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: created
     - name: Verify organization exists
       vars:
         found_orgs: >-
