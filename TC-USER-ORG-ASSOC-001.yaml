@@ -2,11 +2,11 @@
 - name: TC-USER-ORG-ASSOC-001 - Associate a user to organization via org-scoped role
   hosts: localhost
   gather_facts: false
-
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+    
   vars:
-    rh_user: "{{ lookup('env','RH_USERNAME') | default(lookup('env','USER'), true) | default('tester', true) }}"
-    suffix:  "{{ lookup('password', '/dev/null chars=ascii_lowercase length=5') }}"
-    username: "USER-01-{{ rh_username }}"   # default; override if you already created one in TC-USER-001
     org_name: "ENG-ORG-{{ rh_username }}"
     org_role: "Organization Auditor"     # or Organization Admin / Organization Viewer
 
