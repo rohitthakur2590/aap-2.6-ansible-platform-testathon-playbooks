@@ -68,8 +68,8 @@
 
         # ---- Idempotency
         - name: Update org (rename & description)
-          ansible.platform.organization: *org_update
-            name: "{{ new_name }}"
+          ansible.platform.organization: &org_update
+            name: "{{ old_name }}"
             new_name: "{{ new_name }}"
             description: "{{ new_description }}"
             state: present
