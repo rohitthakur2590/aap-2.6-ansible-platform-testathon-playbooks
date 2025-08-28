@@ -10,14 +10,6 @@
     org_name: "ENG-ORG-{{ rh_username }}"
     org_role: "Organization Auditor"     # or Organization Admin / Organization Viewer
 
-  module_defaults:
-    group/ansible.platform.gateway:
-      gateway_hostname: "{{ lookup('env','AAP_HOSTNAME') }}"
-      gateway_username: "{{ lookup('env','AAP_USERNAME') }}"
-      gateway_password: "{{ lookup('env','AAP_PASSWORD') }}"
-      gateway_validate_certs: "{{ (lookup('env','AAP_VALIDATE_CERTS') | default('false')) | bool }}"
-      gateway_request_timeout: 60
-
   tasks:
     # Pre-req checks per spec
     - name: Verify organization exists
