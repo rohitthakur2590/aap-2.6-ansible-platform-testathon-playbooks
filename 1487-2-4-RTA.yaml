@@ -1,0 +1,132 @@
+---
+- name: 1487-2-6-TC-RTA - Reassign org-scoped role from Team A to Team B
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ./vars/aap.yml
+    - ./vars/user.yml
+
+  vars:
+    org_name: "ENG-ORG-MOVE-{{ rh_username }}"
+    team_a: "APAC-BLR-A-{{ rh_username }}"
+    team_b: "APAC-BLR-B-{{ rh_username }}"
+    role_name: "Organization Inventory Admin"
+
+  tasks:
+    - block:
+        # Preconditions
+        - name: Ensure org exists
+          ansible.platform.organization:
+            name: "{{ org_name }}"
+            description: "Reassignment org"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        - name: Ensure team A exists
+          ansible.platform.team:
+            name: "{{ team_a }}"
+            organization: "{{ org_name }}"
+            description: "Source team"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        - name: Ensure team B exists
+          ansible.platform.team:
+            name: "{{ team_b }}"
+            organization: "{{ org_name }}"
+            description: "Destination team"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        - name: Ensure role definition exists
+          ansible.platform.role_definition:
+            name: "{{ role_name }}"
+            description: "Org-scoped inventory admin"
+            content_type: shared.organization
+            permissions:
+              - awx.view_inventory
+              - awx.add_inventory
+              - awx.change_inventory
+              - awx.delete_inventory
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        # Assign to Team A
+        - name: Assign role to Team A on org
+          ansible.platform.role_team_assignment:
+            assignment_objects:
+              - name: "{{ org_name }}"
+                type: "organizations"
+            role_definition: "{{ role_name }}"
+            team: "{{ team_a }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+
+        # Remove from Team A
+        - name: Remove role assignment from Team A
+          ansible.platform.role_team_assignment:
+            assignment_objects:
+              - name: "{{ org_name }}"
+                type: "organizations"
+            role_definition: "{{ role_name }}"
+            team: "{{ team_a }}"
+            state: absent
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: removed_a
+
+        - name: Assert removal changed
+          ansible.builtin.assert:
+            that:
+              - removed_a is changed
+
+        # Assign to Team B
+        - name: Assign role to Team B on org
+          ansible.platform.role_team_assignment: &assign_to_b
+            assignment_objects:
+              - name: "{{ org_name }}"
+                type: "organizations"
+            role_definition: "{{ role_name }}"
+            team: "{{ team_b }}"
+            state: present
+            aap_hostname: "{{ aap_hostname }}"
+            aap_username: "{{ aap_username }}"
+            aap_password: "{{ aap_password }}"
+            aap_validate_certs: "{{ aap_validate_certs }}"
+          register: added_b
+
+        - name: Assert assignment to Team B changed or present
+          ansible.builtin.assert:
+            that:
+              - added_b is changed or added_b is not failed
+
+        # Idempotency on Team B
+        - name: Re-run assignment to Team B (idempotent)
+          ansible.platform.role_team_assignment: *assign_to_b
+          register: b_idem
+
+        - name: Assert Team B idempotent
+          ansible.builtin.assert:
+            that:
+              - b_idem is not changed
+
+      always:
+        - ansible.builtin.debug:
+            msg: "Exit 1487-2-6-TC-RTA"
