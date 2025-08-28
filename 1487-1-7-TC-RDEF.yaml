@@ -9,8 +9,8 @@
 
   vars:
     # Match your “right config”
-    role_name: "New-EDA-ROLE-01-dafmendo"
-    new_role_name: "EDA-ROLE-01-dafmendo"
+    role_name: "EDA-ROLE-01-dmendoza"
+    new_role_name: "-NewEDA-ROLE-01-dmendoza"
     eda_content_type: eda.eventstream
     eda_permissions:
       - eda.change_eventstream
