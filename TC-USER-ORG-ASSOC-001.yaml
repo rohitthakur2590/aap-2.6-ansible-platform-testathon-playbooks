@@ -6,7 +6,7 @@
   vars:
     rh_user: "{{ lookup('env','RH_USERNAME') | default(lookup('env','USER'), true) | default('tester', true) }}"
     suffix:  "{{ lookup('password', '/dev/null chars=ascii_lowercase length=5') }}"
-    username: "testuser001-{{ rh_user }}-{{ suffix }}"   # default; override if you already created one in TC-USER-001
+    username: "USER-01-{{ rh_username }}"   # default; override if you already created one in TC-USER-001
     org_name: "Engineering"
     org_role: "Organization Auditor"     # or Organization Admin / Organization Viewer
 
@@ -38,7 +38,7 @@
       ansible.builtin.assert:
         that:
           - found_users | length == 1
-        fail_msg: "User '{{ username }}' not found. Run TC-USER-001 first or set 'username' var."
+        fail_msg: "User '{{ username }}' not found. Run 1487-3-5 first or set 'username' var."
 
     # Assign org-scoped role to associate user with org
     - name: Associate user to org via role assignment
