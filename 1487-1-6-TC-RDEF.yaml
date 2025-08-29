@@ -45,7 +45,7 @@
         # ---- Verify via EDA API (Gateway→EDA path) ----
         - name: Fetch role via EDA API by name filter
           ansible.builtin.uri:
-            url: "{{ aap_hostname }}/api/eda/v1/role_definitions/?name__icontains={{ role_name | urlencode }}&page_size=2000"
+            url: "{{ aap_hostname }}api/eda/v1/role_definitions/?name__icontains={{ role_name | urlencode }}&page_size=2000"
             method: GET
             user: "{{ aap_username }}"
             password: "{{ aap_password }}"
