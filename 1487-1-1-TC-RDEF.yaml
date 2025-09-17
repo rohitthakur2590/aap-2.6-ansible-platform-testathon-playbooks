@@ -11,8 +11,6 @@
 
   tasks:
   - block:
-      - name: Cleanup
-        ansible.builtin.include_tasks: ./reset/1487-1-1-TC-RDEF-001.yaml
 
       - name: Role name
         ansible.builtin.debug:
